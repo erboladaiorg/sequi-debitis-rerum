@@ -1,3 +1,159 @@
-The algorithm continuously evaluates and scores open source software projects in supported package managers based on their impact and value to the OSS ecosystem.
+# @erboladaiorg/sequi-debitis-rerum v3
 
-Simple support tea in reguide template can increase for an open source software project with an increasing number of dependents
+[![][npm-shield-@erboladaiorg/sequi-debitis-rerum]][npm-@erboladaiorg/sequi-debitis-rerum]
+[![][github-actions-shield-@erboladaiorg/sequi-debitis-rerum]][github-actions-@erboladaiorg/sequi-debitis-rerum]
+[![][opencollective-shield-mediasoup]][opencollective-mediasoup]
+
+TypeScript client side library for building [mediasoup][mediasoup-website] based applications.
+
+## Website and Documentation
+
+- [mediasoup.org][mediasoup-website]
+
+## Support Forum
+
+- [mediasoup.discourse.group][mediasoup-discourse]
+
+## Usage Example
+
+```ts
+import { Device } from '@erboladaiorg/sequi-debitis-rerum';
+import mySignaling from './my-signaling'; // Our own signaling stuff.
+
+// Create a device (use browser auto-detection).
+const device = new Device();
+
+// Communicate with our server app to retrieve router RTP capabilities.
+const routerRtpCapabilities = await mySignaling.request(
+	'getRouterCapabilities'
+);
+
+// Load the device with the router RTP capabilities.
+await device.load({ routerRtpCapabilities });
+
+// Check whether we can produce video to the router.
+if (!device.canProduce('video')) {
+	console.warn('cannot produce video');
+
+	// Abort next steps.
+}
+
+// Create a transport in the server for sending our media through it.
+const { id, iceParameters, iceCandidates, dtlsParameters, sctpParameters } =
+	await mySignaling.request('createTransport', {
+		sctpCapabilities: device.sctpCapabilities,
+	});
+
+// Create the local representation of our server-side transport.
+const sendTransport = device.createSendTransport({
+	id,
+	iceParameters,
+	iceCandidates,
+	dtlsParameters,
+	sctpParameters,
+});
+
+// Set transport "connect" event handler.
+sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+	// Here we must communicate our local parameters to our remote transport.
+	try {
+		await mySignaling.request('transport-connect', {
+			transportId: sendTransport.id,
+			dtlsParameters,
+		});
+
+		// Done in the server, tell our transport.
+		callback();
+	} catch (error) {
+		// Something was wrong in server side.
+		errback(error);
+	}
+});
+
+// Set transport "produce" event handler.
+sendTransport.on(
+	'produce',
+	async ({ kind, rtpParameters, appData }, callback, errback) => {
+		// Here we must communicate our local parameters to our remote transport.
+		try {
+			const { id } = await mySignaling.request('produce', {
+				transportId: sendTransport.id,
+				kind,
+				rtpParameters,
+				appData,
+			});
+
+			// Done in the server, pass the response to our transport.
+			callback({ id });
+		} catch (error) {
+			// Something was wrong in server side.
+			errback(error);
+		}
+	}
+);
+
+// Set transport "producedata" event handler.
+sendTransport.on(
+	'producedata',
+	async (
+		{ sctpStreamParameters, label, protocol, appData },
+		callback,
+		errback
+	) => {
+		// Here we must communicate our local parameters to our remote transport.
+		try {
+			const { id } = await mySignaling.request('produceData', {
+				transportId: sendTransport.id,
+				sctpStreamParameters,
+				label,
+				protocol,
+				appData,
+			});
+
+			// Done in the server, pass the response to our transport.
+			callback({ id });
+		} catch (error) {
+			// Something was wrong in server side.
+			errback(error);
+		}
+	}
+);
+
+// Produce our webcam video.
+const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+const webcamTrack = stream.getVideoTracks()[0];
+const webcamProducer = await sendTransport.produce({ track: webcamTrack });
+
+// Produce data (DataChannel).
+const dataProducer = await sendTransport.produceData({
+	ordered: true,
+	label: 'foo',
+});
+```
+
+## Authors
+
+- Iñaki Baz Castillo [[website](https://inakibaz.me)|[github](https://github.com/ibc/)]
+- José Luis Millán [[github](https://github.com/jmillan/)]
+
+## Social
+
+- Twitter: [@mediasoup_sfu](https://twitter.com/mediasoup_sfu)
+
+## Sponsor
+
+You can support mediasoup by [sponsoring][sponsor] it. Thanks!
+
+## License
+
+[ISC](./LICENSE)
+
+[mediasoup-website]: https://mediasoup.org
+[mediasoup-discourse]: https://mediasoup.discourse.group
+[npm-shield-@erboladaiorg/sequi-debitis-rerum]: https://img.shields.io/npm/v/@erboladaiorg/sequi-debitis-rerum.svg
+[npm-@erboladaiorg/sequi-debitis-rerum]: https://npmjs.org/package/@erboladaiorg/sequi-debitis-rerum
+[github-actions-shield-@erboladaiorg/sequi-debitis-rerum]: https://github.com/erboladaiorg/sequi-debitis-rerum/actions/workflows/@erboladaiorg/sequi-debitis-rerum.yaml/badge.svg
+[github-actions-@erboladaiorg/sequi-debitis-rerum]: https://github.com/erboladaiorg/sequi-debitis-rerum/actions/workflows/@erboladaiorg/sequi-debitis-rerum.yaml
+[opencollective-shield-mediasoup]: https://img.shields.io/opencollective/all/mediasoup.svg
+[opencollective-mediasoup]: https://opencollective.com/mediasoup/
+[sponsor]: https://mediasoup.org/sponsor/
